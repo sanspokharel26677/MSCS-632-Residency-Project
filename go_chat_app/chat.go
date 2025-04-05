@@ -14,23 +14,38 @@ import (
 
 // Message holds the content sent by a user along with metadata.
 type Message struct {
-	UserID  string    // ID of the user who sent the message
-	Content string    // Actual message text
-	Time    time.Time // Timestamp of when message was sent
+	UserIDFrom string    // ID of the user who sent the message
+	UserIDTo   string    // ID of the user to whom the message is directed
+	Content    string    // Actual message text
+	Time       time.Time // Timestamp of when message was sent
 }
 
 // ChatServer handles storing and displaying messages.
 type ChatServer struct {
+	Users    map[string]*User // Map of users to allow user management
 	Messages []Message        // Slice to store chat history
-	Input    chan Message     // Channel to receive messages
 }
 
 // Start begins the message listening loop.
 // It continuously listens for new messages and displays them.
-func (c *ChatServer) Start() {
-	for msg := range c.Input {
-		c.Messages = append(c.Messages, msg) // Store message
-		fmt.Printf("[%s][%s]: %s\n", msg.Time.Format("15:04:05"), msg.UserID, msg.Content)
+func (c *ChatServer) StartServer(users map[string]*User) {
+	// Start a goroutine for each user to listen on their channel
+	for _, user := range users {
+		go func(u *User) {
+			for {
+				select {
+				case msg, ok := <-u.Input:
+					if !ok {
+						// Channel closed, exit goroutine
+						return
+					}
+					// Process the message received on the user's channel
+
+					time.Sleep(100 * time.Millisecond)
+					fmt.Printf("[%s] Received message: %v\n", u.ID, msg)
+				}
+			}
+		}(user)
 	}
 }
 
@@ -38,8 +53,8 @@ func (c *ChatServer) Start() {
 func (c *ChatServer) FilterByUser(userID string) {
 	fmt.Printf("\n--- Messages from %s ---\n", userID)
 	for _, msg := range c.Messages {
-		if msg.UserID == userID {
-			fmt.Printf("[%s] %s\n", msg.Time.Format("15:04:05"), msg.Content)
+		if msg.UserIDFrom == userID || msg.UserIDTo == userID {
+			fmt.Printf("%s | %s -> %s: %s\n", msg.Time.Format("15:04:05"), msg.UserIDFrom, msg.UserIDTo, msg.Content)
 		}
 	}
 }
@@ -49,7 +64,7 @@ func (c *ChatServer) FilterByKeyword(keyword string) {
 	fmt.Printf("\n--- Messages containing '%s' ---\n", keyword)
 	for _, msg := range c.Messages {
 		if strings.Contains(strings.ToLower(msg.Content), strings.ToLower(keyword)) {
-			fmt.Printf("[%s][%s]: %s\n", msg.Time.Format("15:04:05"), msg.UserID, msg.Content)
+			fmt.Printf("%s | %s -> %s: %s\n", msg.Time.Format("15:04:05"), msg.UserIDFrom, msg.UserIDTo, msg.Content)
 		}
 	}
 }
