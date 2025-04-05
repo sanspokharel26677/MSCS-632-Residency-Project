@@ -26,33 +26,22 @@ type ChatServer struct {
 	Messages []Message        // Slice to store chat history
 }
 
-// Start begins the message listening loop.
-// It continuously listens for new messages and displays them.
-func (c *ChatServer) StartServer(users map[string]*User) {
-	// Start a goroutine for each user to listen on their channel
-	for _, user := range users {
-		go func(u *User) {
-			for {
-				select {
-				case msg, ok := <-u.Input:
-					if !ok {
-						// Channel closed, exit goroutine
-						return
-					}
-					// Process the message received on the user's channel
-
-					time.Sleep(100 * time.Millisecond)
-					fmt.Printf("[%s] Received message: %v\n", u.ID, msg)
-				}
-			}
-		}(user)
-	}
-}
-
 // FilterByUser prints all messages from a specific user.
 func (c *ChatServer) FilterByUser(userID string) {
-	fmt.Printf("\n--- Messages from %s ---\n", userID)
-	for _, msg := range c.Messages {
+	// Check if the user exists in the chat server
+	if _, exists := c.Users[userID]; !exists {
+		fmt.Printf("User with ID %s does not exist.\n", userID)
+		return // Exit if the user does not exist
+	}
+	var sentMessages = c.Users[userID].SentMessages
+	for _, msg := range sentMessages {
+		if msg.UserIDFrom == userID || msg.UserIDTo == userID {
+			fmt.Printf("%s | %s -> %s: %s\n", msg.Time.Format("15:04:05"), msg.UserIDFrom, msg.UserIDTo, msg.Content)
+		}
+	}
+
+	var receivedMessages = c.Users[userID].ReceivedMessages
+	for _, msg := range receivedMessages {
 		if msg.UserIDFrom == userID || msg.UserIDTo == userID {
 			fmt.Printf("%s | %s -> %s: %s\n", msg.Time.Format("15:04:05"), msg.UserIDFrom, msg.UserIDTo, msg.Content)
 		}
@@ -67,10 +56,4 @@ func (c *ChatServer) FilterByKeyword(keyword string) {
 			fmt.Printf("%s | %s -> %s: %s\n", msg.Time.Format("15:04:05"), msg.UserIDFrom, msg.UserIDTo, msg.Content)
 		}
 	}
-}
-
-// currentTimestamp returns the current time.
-// It is used when creating a new Message.
-func currentTimestamp() time.Time {
-	return time.Now()
 }

@@ -22,73 +22,124 @@ func main() {
 	}
 
 	// Start the chat server to listen for messages
-	var users map[string]*User
-	users = make(map[string]*User)
-
-	AddUser(users, "User1", make(chan Message))
-	AddUser(users, "User2", make(chan Message))
-	server.StartServer(users) // Start the server to listen for messages
 	for {
 		reader := bufio.NewReader(os.Stdin)
+		response := AskUserForInput() // Ask the user for input
 
-		fmt.Print("Would you like to create a new user? (yes/no): ")
-		response, _ := reader.ReadString('\n')
-		if strings.ToLower(strings.TrimSpace(response)) != "yes" && strings.ToLower(strings.TrimSpace(response)) != "no" {
-			fmt.Println("Invalid response, please enter 'yes' or 'no'.")
-		}
-		if strings.ToLower(strings.TrimSpace(response)) == "yes" {
+		if response == "add user" {
 			fmt.Print("Enter a username for the new user: ")
 			newUserName, _ := reader.ReadString('\n')
 			newUserName = strings.TrimSpace(newUserName)
-
-			// Check if the user already exists
-			if _, exists := users[newUserName]; exists {
-				fmt.Printf("User %s already exists, please choose a different username.\n", newUserName)
-				continue
-			}
+			_, err := CreateUser(server.Users, newUserName) // Use the helper function to create a new user
 
 			// Create a new user and add to the server
-			newUser, err := AddUser(users, newUserName, make(chan Message))
 			if err != nil {
-				fmt.Println("Error creating user:", err)
-				continue
+				continue // Skip to the next iteration if there was an error adding the user
+				// Skip to the next iteration if there was an error
 			}
-			fmt.Printf("New user %s created successfully.\n", newUser.ID)
+		}
+		if response == "exit" {
+			fmt.Println("Exiting the chat application.")
+			break // Exit the loop if the user types 'exit'
 		}
 
-		fmt.Print("Enter sender username: ")
-		userFrom, _ := reader.ReadString('\n')
-		userFrom = strings.TrimSpace(userFrom)
+		if response == "send message" {
+			err := SendMessage(&server) // Call the SendMessage function to send a message
+			if err != nil {
+				fmt.Println("Failed to send message, please try again.")
+				continue // Skip to the next iteration if sending message fails
+			}
+		}
 
-		fmt.Print("Enter recipient username: ")
-		userTo, _ := reader.ReadString('\n')
-		userTo = strings.TrimSpace(userTo)
-
-		fmt.Print("Enter message (or 'exit' to quit): ")
-		message, _ := reader.ReadString('\n')
-		message = strings.TrimSpace(message)
-
-		// Check if both users exist
-		_, fromExists := users[userFrom]
-		_, toExists := users[userTo]
-
-		if !fromExists {
-			fmt.Printf("Error: User %s does not exist\n", userFrom)
+		if response == "filter user" {
+			fmt.Print("Enter the username to filter messages by: ")
+			response, _ := reader.ReadString('\n')
+			response = strings.TrimSpace(response) // Trim any extra whitespace or newline characters
+			server.FilterByUser(response)          // Call the FilterByUser function to filter messages by user
 			continue
 		}
-		if !toExists {
-			fmt.Printf("Error: User %s does not exist\n", userTo)
+
+		if response == "filter message" {
+			fmt.Print("Enter the keyword to filter by: ")
+			response, _ := reader.ReadString('\n')
+			response = strings.TrimSpace(response) // Trim any extra whitespace or newline characters
+			server.FilterByKeyword(response)       // Call the FilterByUser function to filter messages by user
 			continue
 		}
-		var newMessage Message
-		newMessage.UserIDFrom = userFrom
-		newMessage.UserIDTo = userTo
-		newMessage.Content = message
-		userToSendTo := users[userTo]    // Get the recipient user object
-		userToSendTo.Input <- newMessage // Send the message to the recipient's input channel
-
-		newMessage.Time = time.Now() // Set the current time for the message
-		time.Sleep(500 * time.Millisecond)
 	}
+}
 
+func CreateUser(users map[string]*User, id string) (*User, error) {
+	// Helper function to create a new user
+	if _, exists := users[id]; exists {
+		return nil, fmt.Errorf("user with ID %s already exists", id)
+	}
+	inputChannel := make(chan Message)
+	user, err := AddUser(users, id, inputChannel) // Ensure the user is added to the users map
+	if err != nil {
+		return nil, err // Return error if user could not be added
+	}
+	user.StartRouting() // Start routing messages for the new user
+	return user, nil    // Return the newly created user
+}
+
+func AskUserForInput() string {
+	// Helper function to ask for user input
+	reader := bufio.NewReader(os.Stdin)
+
+	fmt.Print("What would you like to do? (send message / add user / filter user / filter message) [Type 'exit' to quit]: ")
+	response, _ := reader.ReadString('\n')
+	if strings.ToLower(strings.TrimSpace(response)) != "add user" && strings.ToLower(strings.TrimSpace(response)) != "exit" && strings.ToLower(strings.TrimSpace(response)) != "send message" && strings.ToLower(strings.TrimSpace(response)) != "filter user" && strings.ToLower(strings.TrimSpace(response)) != "filter message" {
+		fmt.Println("Invalid response, please enter send message / add user / filter user / filter message")
+		response = AskUserForInput() // Recursively ask for input again
+	}
+	return strings.ToLower(strings.TrimSpace(response))
+}
+
+func SendMessage(server *ChatServer) error {
+
+	reader := bufio.NewReader(os.Stdin)
+	var users = server.Users // Access the users map from the server
+
+	fmt.Print("Enter sender username: ")
+	userFrom, _ := reader.ReadString('\n')
+	userFrom = strings.TrimSpace(userFrom)
+
+	fmt.Print("Enter recipient username: ")
+	userTo, _ := reader.ReadString('\n')
+	userTo = strings.TrimSpace(userTo)
+
+	fmt.Print("Enter message (or 'exit' to quit): ")
+	message, _ := reader.ReadString('\n')
+	message = strings.TrimSpace(message)
+
+	// Check if both users exist
+	_, fromExists := users[userFrom]
+	_, toExists := users[userTo]
+
+	if !fromExists {
+		fmt.Printf("Error: User %s does not exist\n", userFrom)
+		fmt.Println("Please create the user first or check the username.")
+		return fmt.Errorf("one or both users do not exist") // Return an error if either user does not exist
+	}
+	if !toExists {
+		fmt.Printf("Error: User %s does not exist\n", userTo)
+		fmt.Println("Please create the user first or check the username.")
+		return fmt.Errorf("one or both users do not exist") // Return an error if either user does not exist
+	}
+	var newMessage Message
+	newMessage.UserIDFrom = userFrom
+	newMessage.UserIDTo = userTo
+	newMessage.Content = message
+	userToSendTo := users[userTo]                                                     // Get the recipient user object
+	userSendFrom := users[userFrom]                                                   // Get the sender user object
+	newMessage.Time = time.Now()                                                      // Set the time for the message before storing it in the history.
+	userToSendTo.ReceivedMessages = append(userToSendTo.ReceivedMessages, newMessage) // Store the message in the recipient's message history
+	userSendFrom.SentMessages = append(userSendFrom.SentMessages, newMessage)         // Store the message in the recipient's message history
+	server.Messages = append(server.Messages, newMessage)                             // Store the message in the server's message history
+	userToSendTo.Input <- newMessage                                                  // Send the message to the recipient's input channel
+
+	newMessage.Time = time.Now() // Set the current time for the message
+	time.Sleep(500 * time.Millisecond)
+	return nil // Return nil to indicate success
 }
