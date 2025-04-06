@@ -56,6 +56,39 @@ impl ChatServer {
         println!("👥 Users Participated: {}", self.message_count.len());
         println!("✅ Chat Ended Successfully.");
     }
+
+    fn filter_by_keyword(&self, keyword: &str) {
+        println!("\n=======================");
+        println!("🔍 Filtered Messages by Keyword: '{}'", keyword);
+        println!("=======================");
+        for msg in &self.messages {
+            if msg.content.contains(keyword) {
+                println!("[{}][{}]: {}", msg.timestamp, msg.user_id, msg.content);
+            }
+        }
+    }
+
+    fn filter_by_user(&self, user: &str) {
+        println!("\n=======================");
+        println!("🔍 Filtered Messages from User: '{}'", user);
+        println!("=======================");
+        for msg in &self.messages {
+            if msg.user_id == user {
+                println!("[{}][{}]: {}", msg.timestamp, msg.user_id, msg.content);
+            }
+        }
+    }
+
+    fn filter_by_user_and_keyword(&self, user: &str, keyword: &str) {
+        println!("\n=======================");
+        println!("🔍 Messages from '{}' containing '{}':", user, keyword);
+        println!("=======================");
+        for msg in &self.messages {
+            if msg.user_id == user && msg.content.to_lowercase().contains(&keyword.to_lowercase()) {
+                println!("[{}][{}]: {}", msg.timestamp, msg.user_id, msg.content);
+            }
+        }
+    }
 }
 
 fn read_input(prompt: &str) -> String {
@@ -124,4 +157,22 @@ fn main() {
     // 7. After all users exit
     println!("\n🎉 All users have left the chat.");
     server.show_summary();
+
+    let keyword = read_input("\nEnter keyword to filter messages (or press Enter to skip): ");
+    if !keyword.is_empty() {
+        server.filter_by_keyword(&keyword);
+    }
+
+    let filter_user = read_input("\nEnter a username to filter messages from (or press Enter to skip): ");
+    if !filter_user.is_empty() {
+        server.filter_by_user(&filter_user);
+    }
+
+    let filter_user = read_input("\nEnter username to filter messages by user and keyword (or press Enter to skip): ");
+    if !filter_user.is_empty() {
+        let keyword = read_input("Enter keyword to filter within that user's messages: ");
+        if !keyword.is_empty() {
+            server.filter_by_user_and_keyword(&filter_user, &keyword);
+        }
+    }
 }
